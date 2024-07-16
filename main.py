@@ -1,6 +1,5 @@
 import pygame
 from pygame.locals import *
-import math
 
 pygame.init()
 
@@ -10,8 +9,6 @@ SCREEN_HEIGHT = 600
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GRAVITY = 0.5  # Gravity strength
-PARTICLE_RADIUS = 5
-PARTICLE_COLOR = (0, 0, 255)  # Blue color for water
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Water Particle Simulation with Maze')
@@ -41,12 +38,11 @@ class Particle:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.radius = PARTICLE_RADIUS
-        self.color = PARTICLE_COLOR
+        self.radius = 2
+        self.color = (0, 0, 255)  # Blue color for water
         self.y_velocity = 0  # Initial velocity
-        self.collided = False  # Flag to prevent multiple collisions per frame
 
-    def update(self, particles):
+    def update(self):
         # Apply gravity
         self.y_velocity += GRAVITY
         self.y += self.y_velocity
@@ -62,26 +58,8 @@ class Particle:
                             self.y = wall_rect.top - self.radius
                             self.y_velocity = 0  # Stop downward movement
 
-        # Check for collisions with other particles
-        for particle in particles:
-            if particle is not self and not particle.collided:
-                distance = math.sqrt((self.x - particle.x)**2 + (self.y - particle.y)**2)
-                if distance <= self.radius + particle.radius:
-                    # Collision detected
-                    self.collide_with_particle(particle)
-                    particle.collide_with_particle(self)
-                    particle.collided = True
-
-    def collide_with_particle(self, other):
-        # Adjust velocities upon collision
-        total_mass = math.pi * (self.radius**2) + math.pi * (other.radius**2)
-        new_y_velocity = (self.y_velocity * (math.pi * (self.radius**2)) + other.y_velocity * (math.pi * (other.radius**2))) / total_mass
-
-        # Update properties of current particle
-        self.y_velocity = new_y_velocity
-
     def draw(self):
-        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), int(self.radius))
+        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
 
 particles = []
 
@@ -96,7 +74,6 @@ def draw_maze():
 # Main game loop
 running = True
 mouse_pressed = False
-clock = pygame.time.Clock()
 while running:
     for event in pygame.event.get():
         if event.type == QUIT:
@@ -114,8 +91,7 @@ while running:
 
     # Update particles
     for particle in particles:
-        particle.update(particles)
-        particle.collided = False  # Reset collided flag for the next frame
+        particle.update()
 
     # Drawing everything
     screen.fill(WHITE)
@@ -123,7 +99,5 @@ while running:
     for particle in particles:
         particle.draw()  # Draw particles on top of the maze
     pygame.display.flip()
-
-    clock.tick(60)  # Limit frame rate to 60 FPS
 
 pygame.quit()
