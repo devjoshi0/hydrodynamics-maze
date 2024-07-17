@@ -1,6 +1,6 @@
 import pygame
 from pygame.locals import *
-
+from sph_simulation import *
 pygame.init()
 
 # Constants

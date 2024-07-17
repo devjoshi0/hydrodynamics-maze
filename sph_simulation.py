@@ -1,110 +1,185 @@
 import pygame
 import numpy as np
-import sys
+from sklearn import neighbors
+from tqdm import tqdm
+
+# Constants
+MAX_PARTICLES = 125
+DOMAIN_WIDTH = 800
+DOMAIN_HEIGHT = 600
+
+PARTICLE_MASS = 5 #1
+ISOTROPIC_EXPONENT = 20 #20
+BASE_DENSITY = 5 # 1
+SMOOTHING_LENGTH = 15 # 5
+DYNAMIC_VISCOSITY = 0.9 #0.5
+DAMPING_COEFFICIENT = -0.9 # -0.9
+CONSTANT_FORCE = np.array([[0.0, 1]])
+
+TIME_STEP_LENGTH = 0.01
+N_TIME_STEPS = 2500
+ADD_PARTICLES_EVERY = 50
+
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 600
+PARTICLE_RADIUS = 15 # 2
+
+DOMAIN_X_LIM = np.array([
+    SMOOTHING_LENGTH,
+    DOMAIN_WIDTH - SMOOTHING_LENGTH,
+])
+DOMAIN_Y_LIM = np.array([
+    SMOOTHING_LENGTH,
+    DOMAIN_HEIGHT - SMOOTHING_LENGTH,
+])
+
+NORMALIZATION_DENSITY = (
+    (315 * PARTICLE_MASS) / (64 * np.pi * SMOOTHING_LENGTH ** 9)
+)
+NORMALIZATION_PRESSURE_FORCE = (
+    -(45 * PARTICLE_MASS) / (np.pi * SMOOTHING_LENGTH ** 6)
+)
+NORMALIZATION_VISCOUS_FORCE = (
+    (45 * DYNAMIC_VISCOSITY * PARTICLE_MASS) / (np.pi * SMOOTHING_LENGTH ** 6)
+)
 
 # Initialize Pygame
 pygame.init()
-screen = pygame.display.set_mode((800, 600))
-pygame.display.set_caption("SPH Water Simulation (Side View)")
-
-# Define colors
-background_color = (0, 0, 0)
-particle_color = (0, 162, 232)
-
-# Set up the clock for managing the frame rate
+window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 clock = pygame.time.Clock()
 
-# SPH Parameters
-NUM_PARTICLES = 50
-PARTICLE_RADIUS = 5
-REST_DENSITY = 3000
-GAS_CONSTANT = 1500
-H = 16  # Kernel radius
-H2 = H * H  # H squared for optimization
-MASS = 50#65
-VISCOSITY = 200#250
-GRAVITY = 100 #np.array([0, 5200])
-DT = 0.001
+def add_particles(positions, velocities, n_particles):
+    new_positions = np.array([
+        [10 + np.random.rand(), DOMAIN_Y_LIM[1]],
+        [15 + np.random.rand(), DOMAIN_Y_LIM[1]],
+        [20 + np.random.rand(), DOMAIN_Y_LIM[1]],
+    ])
 
-# Smoothing kernels
-def poly6(r2, h2):
-    return 315 / (64 * np.pi * h2**4.5) * (h2 - r2)**3 if r2 < h2 else 0
+    new_velocities = np.array([
+        [-3.0, -15.0],
+        [-3.0, -15.0],
+        [-3.0, -15.0],
+    ])
 
-def spiky_gradient(r, h):
-    return -45 / (np.pi * h**6) * (h - r)**2 if r < h else 0
+    n_particles += 3
 
-def viscosity_laplacian(r, h):
-    return 45 / (np.pi * h**6) * (h - r) if r < h else 0
+    positions = np.concatenate((positions, new_positions), axis=0)
+    velocities = np.concatenate((velocities, new_velocities), axis=0)
 
-class Particle:
-    def __init__(self, x, y):
-        self.position = np.array([x, y], dtype=float)
-        self.velocity = np.array([0, 0], dtype=float)
-        self.force = np.array([0, 0], dtype=float)
-        self.density = 0
-        self.pressure = 0
+    return positions, velocities, n_particles
 
-particles = [Particle(np.random.uniform(100, 700), np.random.uniform(100, 200)) for _ in range(NUM_PARTICLES)]
+def calculate_densities(positions, neighbor_ids, distances):
+    densities = np.zeros(len(positions))
 
-def compute_density_pressure():
-    for i in range(NUM_PARTICLES):
-        particles[i].density = 0
-        for j in range(NUM_PARTICLES):
-            r2 = np.sum((particles[i].position - particles[j].position) ** 2)
-            particles[i].density += MASS * poly6(r2, H2)
-        particles[i].pressure = GAS_CONSTANT * (particles[i].density - REST_DENSITY)
+    for i in range(len(positions)):
+        for j_in_list, j in enumerate(neighbor_ids[i]):
+            densities[i] += NORMALIZATION_DENSITY * (
+                SMOOTHING_LENGTH ** 2 - distances[i][j_in_list] ** 2
+            ) ** 3
 
-def compute_forces():
-    for i in range(NUM_PARTICLES):
-        f_pressure = np.zeros(2)
-        f_viscosity = np.zeros(2)
-        for j in range(NUM_PARTICLES):
-            if i != j:
-                r_ij = particles[i].position - particles[j].position
-                r = np.linalg.norm(r_ij)
-                if r < H:
-                    f_pressure += -r_ij / r * MASS * (particles[i].pressure + particles[j].pressure) / (2 * particles[j].density) * spiky_gradient(r, H)
-                    f_viscosity += VISCOSITY * MASS * (particles[j].velocity - particles[i].velocity) / particles[j].density * viscosity_laplacian(r, H)
-        f_gravity = GRAVITY * particles[i].density
-        particles[i].force = f_pressure + f_viscosity + f_gravity
+    return densities
 
-def integrate():
-    for i in range(NUM_PARTICLES):
-        particles[i].velocity += DT * particles[i].force / particles[i].density
-        particles[i].position += DT * particles[i].velocity
+def calculate_forces(positions, velocities, neighbor_ids, distances, densities, pressures):
+    forces = np.zeros_like(positions)
 
-        # Boundary conditions
-        if particles[i].position[0] - PARTICLE_RADIUS < 0:
-            particles[i].position[0] = PARTICLE_RADIUS
-            particles[i].velocity[0] *= -0.1
-        if particles[i].position[0] + PARTICLE_RADIUS > 800:
-            particles[i].position[0] = 800 - PARTICLE_RADIUS
-            particles[i].velocity[0] *= -0.1
-        if particles[i].position[1] - PARTICLE_RADIUS < 0:
-            particles[i].position[1] = PARTICLE_RADIUS
-            particles[i].velocity[1] *= -0.1
-        if particles[i].position[1] + PARTICLE_RADIUS > 600:
-            particles[i].position[1] = 600 - PARTICLE_RADIUS
-            particles[i].velocity[1] *= -0.1
+    # Drop the element itself
+    neighbor_ids = [np.delete(x, 0) for x in neighbor_ids]
+    distances = [np.delete(x, 0) for x in distances]
 
-# Main loop
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    for i in range(len(positions)):
+        for j_in_list, j in enumerate(neighbor_ids[i]):
+            # Pressure force
+            if j_in_list < len(positions[j]):
+                forces[i] += NORMALIZATION_PRESSURE_FORCE * (
+                    -(positions[j] - positions[i]) / distances[i][j_in_list]
+                ) * (
+                    pressures[j] + pressures[i]
+                ) / (2 * densities[j]) * (
+                    SMOOTHING_LENGTH - distances[i][j_in_list]
+                ) ** 2
 
-    screen.fill(background_color)
-    
-    compute_density_pressure()
-    compute_forces()
-    integrate()
-    
-    for particle in particles:
-        pygame.draw.circle(screen, particle_color, particle.position.astype(int), PARTICLE_RADIUS)
-    
-    pygame.display.flip()
-    clock.tick(60)
+            # Viscous force
+            forces[i] += NORMALIZATION_VISCOUS_FORCE * (
+                (velocities[j] - velocities[i]) / densities[j]
+            ) * (
+                SMOOTHING_LENGTH - distances[i][j_in_list]
+            )
 
-pygame.quit()
-sys.exit()
+    return forces
+
+def enforce_boundary_conditions(positions, velocities):
+    out_of_left_boundary = positions[:, 0] < DOMAIN_X_LIM[0]
+    out_of_right_boundary = positions[:, 0] > DOMAIN_X_LIM[1]
+    out_of_bottom_boundary = positions[:, 1] < DOMAIN_Y_LIM[0]
+    out_of_top_boundary = positions[:, 1] > DOMAIN_Y_LIM[1]
+
+    velocities[out_of_left_boundary, 0] *= DAMPING_COEFFICIENT
+    positions[out_of_left_boundary, 0] = DOMAIN_X_LIM[0]
+
+    velocities[out_of_right_boundary, 0] *= DAMPING_COEFFICIENT
+    positions[out_of_right_boundary, 0] = DOMAIN_X_LIM[1]
+
+    velocities[out_of_bottom_boundary, 1] *= DAMPING_COEFFICIENT
+    positions[out_of_bottom_boundary, 1] = DOMAIN_Y_LIM[0]
+
+    velocities[out_of_top_boundary, 1] *= DAMPING_COEFFICIENT
+    positions[out_of_top_boundary, 1] = DOMAIN_Y_LIM[1]
+
+    return positions, velocities
+
+def draw_particles(window, positions):
+    for i in range(len(positions)):
+        x, y = positions[i]
+        if np.isnan(x) or np.isnan(y):
+            continue
+        pygame.draw.circle(window, (144,209,234), (int(x), int(y)), PARTICLE_RADIUS)
+
+def main():
+    n_particles = 1
+
+    positions = np.ones((n_particles, 2))
+    velocities = np.zeros_like(positions)
+    forces = np.zeros_like(positions)
+
+    for iter in tqdm(range(N_TIME_STEPS)):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+
+        if iter % ADD_PARTICLES_EVERY == 0 and n_particles < MAX_PARTICLES:
+            positions, velocities, n_particles = add_particles(positions, velocities, n_particles)
+
+        neighbor_ids, distances = neighbors.KDTree(
+            positions,
+        ).query_radius(
+            positions,
+            SMOOTHING_LENGTH,
+            return_distance=True,
+            sort_results=True,
+        )
+
+        densities = calculate_densities(positions, neighbor_ids, distances)
+        pressures = ISOTROPIC_EXPONENT * (densities - BASE_DENSITY)
+
+        forces = calculate_forces(positions, velocities, neighbor_ids, distances, densities, pressures)
+
+        # Force due to gravity
+        forces += CONSTANT_FORCE
+
+        velocities = velocities + TIME_STEP_LENGTH * forces / densities[:, np.newaxis]
+        positions = positions + TIME_STEP_LENGTH * velocities
+
+        positions, velocities = enforce_boundary_conditions(positions, velocities)
+
+        # Clear the window
+        window.fill((0, 0, 0))
+
+        # Draw particles
+        draw_particles(window, positions)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+if __name__ == "__main__":
+    main()

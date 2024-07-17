@@ -2,14 +2,14 @@ import pygame
 import numpy as np
 
 # Constants
-WIDTH, HEIGHT = 800, 600
-NUM_PARTICLES = 200
-RADIUS = 30
-GRAVITY = np.array([0, 0.1])
-RELEASE_TIME = 3  # Time in seconds after which the dam breaks
-K = 0.005  # Repulsion constant
-MIN_DISTANCE = 2 * RADIUS  # Minimum distance for collision
-DAMPING = -0.1  # Damping factor to reduce bounciness
+WIDTH, HEIGHT = 600, 800
+NUM_PARTICLES = 100
+RADIUS = 50
+GRAVITY = np.array([0, 100])
+
+K = 0.08  # Increase the repulsion constant
+MIN_DISTANCE = 0.5 * RADIUS  # Decrease the minimum distance for collision
+DAMPING = -0.001  # Damping factor to reduce bounciness
 
 # Initialize Pygame
 pygame.init()
@@ -21,6 +21,9 @@ class Particle:
         self.pos = np.array(pos, dtype=float)
         self.vel = np.array(vel, dtype=float)
         self.color = (0, 0, 255)  # Start as blue
+        self.density = 0  # Particle density
+        self.pressure = 0  # Particle pressure
+        self.force = np.array([0, 0], dtype=float)  # Particle force
 
     def update(self, released, particles):
         if released:
@@ -32,15 +35,41 @@ class Particle:
             if particle != self:
                 diff = self.pos - particle.pos
                 dist = np.linalg.norm(diff)
-                if dist < MIN_DISTANCE:
+                if dist < MIN_DISTANCE and dist != 0:
                     # Calculate repulsion force
                     repulsion = K * (MIN_DISTANCE - dist) / dist * diff
                     self.vel += repulsion
-                    # Add upward force to mimic water behavior
-                    if self.pos[1] > particle.pos[1]:
-                        self.vel[1] -= K * (MIN_DISTANCE - dist) / dist
+                    particle.vel -= repulsion**2
 
         self.pos += self.vel
+
+        # Calculate density and pressure
+        self.density = 0
+        for particle in particles:
+            if particle != self:
+                diff = self.pos - particle.pos
+                dist = np.linalg.norm(diff)
+                if dist < MIN_DISTANCE and dist != 0:
+                    self.density += (MIN_DISTANCE - dist) ** 2
+
+        self.pressure = K * self.density
+
+        # Calculate force
+        self.force = np.array([0, 0], dtype=float)
+        for particle in particles:
+            if particle != self:
+                diff = self.pos - particle.pos
+                dist = np.linalg.norm(diff)
+                if dist < MIN_DISTANCE and dist != 0:
+                    # Calculate pressure force
+                    pressure_force = -K * (MIN_DISTANCE - dist) / dist * diff
+                    self.force += pressure_force**2
+
+                    # Calculate viscosity force
+                    viscosity_force = DAMPING * (particle.vel - self.vel)
+                    self.force += viscosity_force
+
+        self.vel += self.force
 
         # Boundary conditions
         if self.pos[0] <= RADIUS or self.pos[0] >= WIDTH - RADIUS:
@@ -57,7 +86,11 @@ class Particle:
         self.color = (color_intensity, 0, 255 - color_intensity)
 
 # Initialize particles on the left side of the screen
-particles = [Particle((np.random.rand() * WIDTH * 0.2, np.random.rand() * HEIGHT), (0, 0)) for _ in range(NUM_PARTICLES)]
+particles = []
+for i in range(NUM_PARTICLES):
+      # Add a delay of 100 milliseconds between each particle creation
+    particles.append(Particle((np.random.rand() * WIDTH * 0.2, np.random.rand() * HEIGHT), (0, 0)))
+   
 
 running = True
 released = False
@@ -68,10 +101,6 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    # Check if it's time to release the particles
-    current_time = pygame.time.get_ticks()
-    if (current_time - start_time) / 1000 >= RELEASE_TIME:
-        released = True
 
     # Update particles
     for particle in particles:
