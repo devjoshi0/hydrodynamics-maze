@@ -8,9 +8,9 @@ MAX_PARTICLES = 300
 DOMAIN_WIDTH = 800
 DOMAIN_HEIGHT = 600
 
-PARTICLE_MASS = 5 #1
+PARTICLE_MASS = 1 #1
 ISOTROPIC_EXPONENT = 20 #20
-BASE_DENSITY = 2 # 1
+BASE_DENSITY = 1 # 1
 SMOOTHING_LENGTH = 15 # 5
 DYNAMIC_VISCOSITY = 0.9 #0.5
 DAMPING_COEFFICIENT = -0.9 # -0.9
@@ -50,9 +50,9 @@ clock = pygame.time.Clock()
 
 def add_particles(positions, velocities, n_particles):
     new_positions = np.array([
-        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
-        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
-        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
     ])
 
     new_velocities = np.array([
@@ -91,22 +91,26 @@ def calculate_forces(positions, velocities, neighbor_ids, distances, densities, 
         for j_in_list, j in enumerate(neighbor_ids[i]):
             # Pressure force
             if j_in_list < len(positions[j]):
-                forces[i] += NORMALIZATION_PRESSURE_FORCE * (
-                    -(positions[j] - positions[i]) / distances[i][j_in_list]
-                ) * (
-                    pressures[j] + pressures[i]
-                ) / (2 * densities[j]) * (
-                    SMOOTHING_LENGTH - distances[i][j_in_list]
-                ) ** 2
+                # Avoid division by zero or very small distances
+                distance = distances[i][j_in_list]
+                if distance > 1e-6:
+                    forces[i] += NORMALIZATION_PRESSURE_FORCE * (
+                        -(positions[j] - positions[i]) / distance
+                    ) * (
+                        pressures[j] + pressures[i]
+                    ) / (2 * densities[j]) * (
+                        SMOOTHING_LENGTH - distance
+                    ) ** 2
 
             # Viscous force
             forces[i] += NORMALIZATION_VISCOUS_FORCE * (
                 (velocities[j] - velocities[i]) / densities[j]
             ) * (
-                SMOOTHING_LENGTH - distances[i][j_in_list]
+                SMOOTHING_LENGTH - distance
             )
 
     return forces
+
 
 def enforce_boundary_conditions(positions, velocities):
     out_of_left_boundary = positions[:, 0] < DOMAIN_X_LIM[0]

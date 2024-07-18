@@ -3,11 +3,8 @@ from pygame.locals import *
 import numpy as np
 from sph_simulation import (
     add_particles, calculate_densities, calculate_forces,
-    enforce_boundary_conditions, draw_particles, DOMAIN_X_LIM,
-    DOMAIN_Y_LIM, SMOOTHING_LENGTH, ISOTROPIC_EXPONENT,
-    BASE_DENSITY, CONSTANT_FORCE, TIME_STEP_LENGTH, MAX_PARTICLES,
-    NORMALIZATION_DENSITY, NORMALIZATION_PRESSURE_FORCE,
-    NORMALIZATION_VISCOUS_FORCE
+    enforce_boundary_conditions, draw_particles, SMOOTHING_LENGTH, ISOTROPIC_EXPONENT,
+    BASE_DENSITY, CONSTANT_FORCE, TIME_STEP_LENGTH, MAX_PARTICLES
 )
 from sklearn import neighbors
 
@@ -18,29 +15,31 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-PARTICLE_RADIUS = 15  # To match the radius in the SPH simulation
+PARTICLE_RADIUS = 10  # To match the radius in the SPH simulation
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Water Particle Simulation with Maze')
 
 # Example maze structure (2D array)
 maze = [
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 1, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1, 0, 1, 1],
-    [1, 0, 0, 0, 1, 0, 1, 1],
-    [1, 0, 0, 0, 1, 0, 1, 1],
-    [1, 1, 1, 1, 1, 0, 1, 1]
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 1, 1, 0, 1, 1, 1],
+    [1, 0, 1, 0, 1, 1, 0, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1, 1, 1],
+    [1, 0, 0, 0, 1, 0, 1, 1, 1, 1],
+    [1, 0, 0, 0, 1, 0, 1, 1, 1, 1],
+    [1, 0, 0, 0, 1, 0, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
 ]
 
 # Define block size and maze dimensions
@@ -52,39 +51,49 @@ maze_height = len(maze)
 maze_offset_x = (SCREEN_WIDTH - maze_width * block_size) // 2
 maze_offset_y = (SCREEN_HEIGHT - maze_height * block_size) // 2
 
+# Create a list to store wall rectangles
+walls = []
+
+# Initialize wall rectangles
+for y in range(maze_height):
+    for x in range(maze_width):
+        if maze[y][x] == 1:
+            rect = pygame.Rect(maze_offset_x + x * block_size, maze_offset_y + y * block_size, block_size, block_size)
+            walls.append(rect)
+
 # Function to draw the maze
 def draw_maze():
-    for y in range(maze_height):
-        for x in range(maze_width):
-            if maze[y][x] == 1:
-                rect = pygame.Rect(maze_offset_x + x * block_size, maze_offset_y + y * block_size, block_size, block_size)
-                pygame.draw.rect(screen, BLACK, rect)
+    for wall in walls:
+        pygame.draw.rect(screen, BLACK, wall)
 
-# Function to check particle-maze collisions
+# Function to check particle-maze collisions using Pygame's collision system
 def enforce_maze_boundary_conditions(positions, velocities):
     for i in range(len(positions)):
-        x, y = positions[i]
+        particle_rect = pygame.Rect(positions[i][0] - PARTICLE_RADIUS, positions[i][1] - PARTICLE_RADIUS, PARTICLE_RADIUS * 2, PARTICLE_RADIUS * 2)
+        
+        for wall in walls:
+            if particle_rect.colliderect(wall):
+                overlap_x = min(wall.right - particle_rect.left, particle_rect.right - wall.left)
+                overlap_y = min(wall.bottom - particle_rect.top, particle_rect.bottom - wall.top)
 
-        # Convert particle position to maze grid coordinates
-        grid_x = int((x - maze_offset_x) / block_size)
-        grid_y = int((y - maze_offset_y) / block_size)
+                if overlap_x < overlap_y:
+                    # Horizontal collision
+                    if particle_rect.centerx < wall.centerx:
+                        positions[i][0] = wall.left - PARTICLE_RADIUS
+                    else:
+                        positions[i][0] = wall.right + PARTICLE_RADIUS
+                    velocities[i][0] *= -0.5  # Bounce back horizontally, reduce speed
 
-        # Check if the particle is within the maze bounds
-        if 0 <= grid_x < maze_width and 0 <= grid_y < maze_height:
-            if maze[grid_y][grid_x] == 1:
-                # Particle is inside a wall, move it out and reverse velocity
-                if grid_x > 0 and maze[grid_y][grid_x - 1] == 0:
-                    positions[i][0] = maze_offset_x + (grid_x - 1) * block_size + block_size
-                elif grid_x < maze_width - 1 and maze[grid_y][grid_x + 1] == 0:
-                    positions[i][0] = maze_offset_x + (grid_x + 1) * block_size
-                if grid_y > 0 and maze[grid_y - 1][grid_x] == 0:
-                    positions[i][1] = maze_offset_y + (grid_y - 1) * block_size + block_size
-                elif grid_y < maze_height - 1 and maze[grid_y + 1][grid_x] == 0:
-                    positions[i][1] = maze_offset_y + (grid_y + 1) * block_size
-                
-                velocities[i] *= -0.5  # Dampen the velocity upon collision
+                else:
+                    # Vertical collision
+                    if particle_rect.centery < wall.centery:
+                        positions[i][1] = wall.top - PARTICLE_RADIUS
+                    else:
+                        positions[i][1] = wall.bottom + PARTICLE_RADIUS
+                    velocities[i][1] *= -0.5  # Bounce back vertically, reduce speed
 
     return positions, velocities
+
 
 # Initialize SPH simulation variables
 n_particles = 1

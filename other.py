@@ -1,117 +1,89 @@
 import pygame
-import numpy as np
-
-# Constants
-WIDTH, HEIGHT = 600, 800
-NUM_PARTICLES = 100
-RADIUS = 50
-GRAVITY = np.array([0, 100])
-
-K = 0.08  # Increase the repulsion constant
-MIN_DISTANCE = 0.5 * RADIUS  # Decrease the minimum distance for collision
-DAMPING = -0.001  # Damping factor to reduce bounciness
 
 # Initialize Pygame
 pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-clock = pygame.time.Clock()
 
-class Particle:
-    def __init__(self, pos, vel):
-        self.pos = np.array(pos, dtype=float)
-        self.vel = np.array(vel, dtype=float)
-        self.color = (0, 0, 255)  # Start as blue
-        self.density = 0  # Particle density
-        self.pressure = 0  # Particle pressure
-        self.force = np.array([0, 0], dtype=float)  # Particle force
+# Set up the display
+screen_width = 800
+screen_height = 600
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Maze Game")
 
-    def update(self, released, particles):
-        if released:
-            # Apply gravity
-            self.vel += GRAVITY
-        
-        # Apply repulsion force from other particles
-        for particle in particles:
-            if particle != self:
-                diff = self.pos - particle.pos
-                dist = np.linalg.norm(diff)
-                if dist < MIN_DISTANCE and dist != 0:
-                    # Calculate repulsion force
-                    repulsion = K * (MIN_DISTANCE - dist) / dist * diff
-                    self.vel += repulsion
-                    particle.vel -= repulsion**2
+# Define colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
 
-        self.pos += self.vel
+# Define the maze
+maze = [
+    "11111111111111111111",
+    "10000000000000000001",
+    "10111011111111111101",
+    "10101000000000000101",
+    "10101111111011110101",
+    "10101000000001000101",
+    "10101011111010110101",
+    "10101010000000100101",
+    "10101010111111110101",
+    "10101010100000000101",
+    "10101010101111110101",
+    "10101010101000000101",
+    "10101010101011110101",
+    "10101010101010000101",
+    "10101010101010110101",
+    "10101010101010100101",
+    "10101010101010101001",
+    "10101010101010101001",
+    "10101010101010101001",
+    "11111111111111111111"
+]
 
-        # Calculate density and pressure
-        self.density = 0
-        for particle in particles:
-            if particle != self:
-                diff = self.pos - particle.pos
-                dist = np.linalg.norm(diff)
-                if dist < MIN_DISTANCE and dist != 0:
-                    self.density += (MIN_DISTANCE - dist) ** 2
+# Define the player
+player_size = 20
+player_x = 40
+player_y = 40
+player_speed = 5
 
-        self.pressure = K * self.density
-
-        # Calculate force
-        self.force = np.array([0, 0], dtype=float)
-        for particle in particles:
-            if particle != self:
-                diff = self.pos - particle.pos
-                dist = np.linalg.norm(diff)
-                if dist < MIN_DISTANCE and dist != 0:
-                    # Calculate pressure force
-                    pressure_force = -K * (MIN_DISTANCE - dist) / dist * diff
-                    self.force += pressure_force**2
-
-                    # Calculate viscosity force
-                    viscosity_force = DAMPING * (particle.vel - self.vel)
-                    self.force += viscosity_force
-
-        self.vel += self.force
-
-        # Boundary conditions
-        if self.pos[0] <= RADIUS or self.pos[0] >= WIDTH - RADIUS:
-            self.vel[0] *= DAMPING  # Apply damping
-            self.pos[0] = np.clip(self.pos[0], RADIUS, WIDTH - RADIUS)
-
-        if self.pos[1] >= HEIGHT - RADIUS:
-            self.vel[1] *= DAMPING  # Apply damping
-            self.pos[1] = HEIGHT - RADIUS
-
-        # Change color based on velocity (speed)
-        speed = np.linalg.norm(self.vel)
-        color_intensity = min(255, int(np.nan_to_num(speed) * 10))
-        self.color = (color_intensity, 0, 255 - color_intensity)
-
-# Initialize particles on the left side of the screen
-particles = []
-for i in range(NUM_PARTICLES):
-      # Add a delay of 100 milliseconds between each particle creation
-    particles.append(Particle((np.random.rand() * WIDTH * 0.2, np.random.rand() * HEIGHT), (0, 0)))
-   
-
+# Game loop
 running = True
-released = False
-start_time = pygame.time.get_ticks()
-
 while running:
+    # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
+    # Move the player
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]:
+        player_x -= player_speed
+    if keys[pygame.K_RIGHT]:
+        player_x += player_speed
+    if keys[pygame.K_UP]:
+        player_y -= player_speed
+    if keys[pygame.K_DOWN]:
+        player_y += player_speed
 
-    # Update particles
-    for particle in particles:
-        particle.update(released, particles)
+    # Check for collisions with walls
+    for row in range(len(maze)):
+        for col in range(len(maze[row])):
+            if maze[row][col] == "1":
+                wall_rect = pygame.Rect(col * player_size, row * player_size, player_size, player_size)
+                player_rect = pygame.Rect(player_x, player_y, player_size, player_size)
+                if player_rect.colliderect(wall_rect):
+                    # Handle collision
+                    print("Collision detected!")
 
-    # Draw
-    screen.fill((0, 0, 0))
-    for particle in particles:
-        pygame.draw.circle(screen, particle.color, particle.pos.astype(int), RADIUS)
+    # Draw the maze
+    screen.fill(BLACK)
+    for row in range(len(maze)):
+        for col in range(len(maze[row])):
+            if maze[row][col] == "1":
+                pygame.draw.rect(screen, WHITE, (col * player_size, row * player_size, player_size, player_size))
 
+    # Draw the player
+    pygame.draw.rect(screen, WHITE, (player_x, player_y, player_size, player_size))
+
+    # Update the display
     pygame.display.flip()
-    clock.tick(60)
 
+# Quit the game
 pygame.quit()
