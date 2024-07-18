@@ -8,11 +8,11 @@ MAX_PARTICLES = 300
 DOMAIN_WIDTH = 800
 DOMAIN_HEIGHT = 600
 
-PARTICLE_MASS = 1 #1
-ISOTROPIC_EXPONENT = 20 #20
-BASE_DENSITY = 1 # 1
+PARTICLE_MASS = 5 #1
+ISOTROPIC_EXPONENT = 50 #20
+BASE_DENSITY = 2 # 1
 SMOOTHING_LENGTH = 15 # 5
-DYNAMIC_VISCOSITY = 0.9 #0.5
+DYNAMIC_VISCOSITY = 0.4 #0.5
 DAMPING_COEFFICIENT = -0.9 # -0.9
 CONSTANT_FORCE = np.array([[0.0, 1]])
 
@@ -51,14 +51,14 @@ clock = pygame.time.Clock()
 def add_particles(positions, velocities, n_particles):
     new_positions = np.array([
         [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
-        [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
-        [400 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [410 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [390 + np.random.rand(), DOMAIN_Y_LIM[0]],
     ])
 
     new_velocities = np.array([
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [0.0, 0.0],
+        [0.0, -0.0],
+        [0.0, -0.0],
+        [0.0, -0.0],
     ])
 
     n_particles += 1
