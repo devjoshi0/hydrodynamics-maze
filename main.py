@@ -15,7 +15,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-PARTICLE_RADIUS = 5  # To match the radius in the SPH simulation
+PARTICLE_RADIUS = 7  # To match the radius in the SPH simulation
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Water Particle Simulation with Maze')
@@ -82,7 +82,7 @@ for y in range(maze_height):
 # Function to draw the maze
 def draw_maze():
     for wall in walls:
-        pygame.draw.rect(screen, BLACK, wall)
+        pygame.draw.rect(screen, WHITE, wall)
 
 # Function to check particle-maze collisions using Pygame's collision system
 def enforce_maze_boundary_conditions(positions, velocities):
@@ -158,7 +158,7 @@ while running:
     positions, velocities = enforce_maze_boundary_conditions(positions, velocities)
 
     # Drawing everything
-    screen.fill(WHITE)
+    screen.fill(BLACK)
     draw_maze()  # Draw the maze first
     draw_particles(screen, positions)  # Draw the particles
     pygame.display.flip()

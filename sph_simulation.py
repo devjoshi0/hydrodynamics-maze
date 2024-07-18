@@ -8,12 +8,12 @@ MAX_PARTICLES = 300
 DOMAIN_WIDTH = 800
 DOMAIN_HEIGHT = 600
 
-PARTICLE_MASS = 1 #1
-ISOTROPIC_EXPONENT = 50 #20
-BASE_DENSITY = 5 # 1
-SMOOTHING_LENGTH = 15 # 5
-DYNAMIC_VISCOSITY = 0.8 #0.5
-DAMPING_COEFFICIENT = -0.999 # -0.9
+PARTICLE_MASS = 2
+ISOTROPIC_EXPONENT = 30
+BASE_DENSITY = 5
+SMOOTHING_LENGTH = 15
+DYNAMIC_VISCOSITY = 0.8
+DAMPING_COEFFICIENT = -0.999
 CONSTANT_FORCE = np.array([[0.0, 1.5]])
 
 TIME_STEP_LENGTH = 0.01
@@ -22,7 +22,7 @@ ADD_PARTICLES_EVERY = 20
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
-PARTICLE_RADIUS = 5 # 2
+PARTICLE_RADIUS = 7
 
 DOMAIN_X_LIM = np.array([
     SMOOTHING_LENGTH,
@@ -94,13 +94,27 @@ def calculate_forces(positions, velocities, neighbor_ids, distances, densities, 
                 # Avoid division by zero or very small distances
                 distance = distances[i][j_in_list]
                 if distance > 1e-6:
-                    forces[i] += NORMALIZATION_PRESSURE_FORCE * (
-                        -(positions[j] - positions[i]) / distance
-                    ) * (
-                        pressures[j] + pressures[i]
-                    ) / (2 * densities[j]) * (
-                        SMOOTHING_LENGTH - distance
-                    ) ** 2
+                    # Repulsive force when particles are too close
+                    if distance < SMOOTHING_LENGTH / 2:
+                        repulsive_force = NORMALIZATION_PRESSURE_FORCE * (
+                            -(positions[j] - positions[i]) / distance
+                        ) * (
+                            pressures[j] + pressures[i]
+                        ) / (2 * densities[j]) * (
+                            SMOOTHING_LENGTH - distance
+                        ) ** 2
+                        forces[i] += repulsive_force
+
+                    # Attractive force when particles are at a certain distance
+                    if distance > SMOOTHING_LENGTH / 2:
+                        attractive_force = -NORMALIZATION_PRESSURE_FORCE * (
+                            -(positions[j] - positions[i]) / distance
+                        ) * (
+                            pressures[j] + pressures[i]
+                        ) / (2 * densities[j]) * (
+                            SMOOTHING_LENGTH - distance
+                        ) ** 2
+                        forces[i] += attractive_force
 
             # Viscous force
             forces[i] += NORMALIZATION_VISCOUS_FORCE * (
@@ -133,11 +147,16 @@ def enforce_boundary_conditions(positions, velocities):
     return positions, velocities
 
 def draw_particles(window, positions):
+    # Use a surface to blend particles for fluid effect
+    fluid_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+    
     for i in range(len(positions)):
         x, y = positions[i]
         if np.isnan(x) or np.isnan(y):
             continue
-        pygame.draw.circle(window, (144,209,234), (int(x), int(y)), PARTICLE_RADIUS)
+        pygame.draw.circle(fluid_surface, (144, 209, 234, 100), (int(x), int(y)), PARTICLE_RADIUS)
+    
+    window.blit(fluid_surface, (0, 0))
 
 def main():
     n_particles = 1
