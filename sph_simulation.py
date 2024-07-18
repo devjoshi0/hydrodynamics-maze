@@ -4,13 +4,13 @@ from sklearn import neighbors
 from tqdm import tqdm
 
 # Constants
-MAX_PARTICLES = 125
+MAX_PARTICLES = 300
 DOMAIN_WIDTH = 800
 DOMAIN_HEIGHT = 600
 
 PARTICLE_MASS = 5 #1
 ISOTROPIC_EXPONENT = 20 #20
-BASE_DENSITY = 5 # 1
+BASE_DENSITY = 2 # 1
 SMOOTHING_LENGTH = 15 # 5
 DYNAMIC_VISCOSITY = 0.9 #0.5
 DAMPING_COEFFICIENT = -0.9 # -0.9
@@ -22,7 +22,7 @@ ADD_PARTICLES_EVERY = 50
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
-PARTICLE_RADIUS = 15 # 2
+PARTICLE_RADIUS = 5 # 2
 
 DOMAIN_X_LIM = np.array([
     SMOOTHING_LENGTH,
@@ -50,23 +50,24 @@ clock = pygame.time.Clock()
 
 def add_particles(positions, velocities, n_particles):
     new_positions = np.array([
-        [10 + np.random.rand(), DOMAIN_Y_LIM[1]],
-        [15 + np.random.rand(), DOMAIN_Y_LIM[1]],
-        [20 + np.random.rand(), DOMAIN_Y_LIM[1]],
+        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
+        [250 + np.random.rand(), DOMAIN_Y_LIM[0]],
     ])
 
     new_velocities = np.array([
-        [-3.0, -15.0],
-        [-3.0, -15.0],
-        [-3.0, -15.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
     ])
 
-    n_particles += 3
+    n_particles += 1
 
     positions = np.concatenate((positions, new_positions), axis=0)
     velocities = np.concatenate((velocities, new_velocities), axis=0)
 
     return positions, velocities, n_particles
+
 
 def calculate_densities(positions, neighbor_ids, distances):
     densities = np.zeros(len(positions))
