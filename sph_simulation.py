@@ -8,21 +8,21 @@ MAX_PARTICLES = 300
 DOMAIN_WIDTH = 800
 DOMAIN_HEIGHT = 600
 
-PARTICLE_MASS = 2
+PARTICLE_MASS = 3
 ISOTROPIC_EXPONENT = 30
-BASE_DENSITY = 5
+BASE_DENSITY = 9
 SMOOTHING_LENGTH = 15
-DYNAMIC_VISCOSITY = 0.8
+DYNAMIC_VISCOSITY = 0.2
 DAMPING_COEFFICIENT = -0.999
 CONSTANT_FORCE = np.array([[0.0, 1.5]])
 
 TIME_STEP_LENGTH = 0.01
 N_TIME_STEPS = 2500
-ADD_PARTICLES_EVERY = 20
+ADD_PARTICLES_EVERY = 2
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
-PARTICLE_RADIUS = 7
+PARTICLE_RADIUS = 15
 
 DOMAIN_X_LIM = np.array([
     SMOOTHING_LENGTH,
@@ -154,7 +154,8 @@ def draw_particles(window, positions):
         x, y = positions[i]
         if np.isnan(x) or np.isnan(y):
             continue
-        pygame.draw.circle(fluid_surface, (144, 209, 234, 100), (int(x), int(y)), PARTICLE_RADIUS)
+        if 0 <= x <= WINDOW_WIDTH and 0 <= y <= WINDOW_HEIGHT:
+            pygame.draw.circle(fluid_surface, (144, 209, 234, 100), (int(x), int(y)), PARTICLE_RADIUS)
     
     window.blit(fluid_surface, (0, 0))
 
